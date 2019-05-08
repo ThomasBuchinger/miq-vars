@@ -25,7 +25,7 @@ module MiqVar
       def self.exit_on_failure?
         true
       end
-      class_option :index, type: :numeric, default: 0, desc: "Select the correct StateMachine id there are multiple with the same TASK_ID"
+      class_option :index, type: :numeric, default: 0, desc: "Select the correct StateMachine, if there are multiple with the same TASK_ID"
 
       desc "show TASK_ID [all][STATE_VAR, ...]", "Show Information about a given Task (e.g. r1234_miq_provision_1234)"
       def show(task_id, *state_var)
