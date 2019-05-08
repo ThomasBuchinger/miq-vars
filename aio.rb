@@ -25,14 +25,14 @@ module MiqVar
       def self.exit_on_failure?
         true
       end
+      class_option :index, type: :numeric, default: 0, desc: "Select the correct StateMachine id there are multiple with the same TASK_ID"
 
-      desc "show TASK_ID", "Show Information about a given Task (e.g. r1234_miq_provision_1234)"
-      option :format, type: :string, desc: "Values: all, state, short"
-      def show(task_id)
-        task = MiqVar.task_by_label(task_id)
+      desc "show TASK_ID [all][STATE_VAR, ...]", "Show Information about a given Task (e.g. r1234_miq_provision_1234)"
+      def show(task_id, *state_var)
         format = options.fetch(:format, 'short')
-        raise "Invalid format #{format}" unless %q[all short state].include?(format)
-        puts task.get_details(format)
+        task   = MiqVar.task_by_label(task_id, options[:index])
+
+        puts task.get_details(state_var)
       end
 
       desc "list", "List currently active requests"
@@ -42,7 +42,7 @@ module MiqVar
 
       desc "set TASK_ID KEY JSON_VALUE", "Set (Overwrite) a state variable"
       def set(task_id, key, value)
-        task = MiqVar.task_by_label(task_id)
+        task = MiqVar.task_by_label(task_id, options[:index])
         task.set_state_var(key, YAML.load(value))
       end
     end
@@ -60,10 +60,10 @@ module MiqVar
 
   end
 
-  def self.task_by_label(tracking_label)
+  def self.task_by_label(tracking_label, index=0)
     raise "Malformatted task_id #{tracking_label}" unless tracking_label =~ /^r[\d]+/
 
-    MiqVar::Task.new(tracking_label)
+    MiqVar::Task.new(tracking_label, index)
   end
 
 end
@@ -76,9 +76,9 @@ module MiqVar
   class Task
     attr_reader :miq_queue_object, :data, :tracking_label
 
-    def initialize(tracking_label)
+    def initialize(tracking_label, index=0)
       @tracking_label = tracking_label
-      @miq_queue_object = MiqAeMethodService::MiqAeServiceMiqQueue.where(tracking_label: tracking_label).first
+      @miq_queue_object = MiqAeMethodService::MiqAeServiceMiqQueue.where(tracking_label: tracking_label).try(:[], index)
       raise "Unable to find Task: #{@tracking_label}" if @miq_queue_object.blank?
       
       reload()
@@ -113,7 +113,7 @@ module MiqVar
       puts @data.to_yaml
     end
 
-    def get_details(format)
+    def get_details(selected_vars)
       lines = []
       user = MiqAeMethodService::MiqAeServiceUser.where(id: @data[:user_id]).first
       state_data = YAML.load(@data[:ae_state_data].presence || "")
@@ -124,10 +124,12 @@ module MiqVar
       lines << "  State: #{@data[:ae_state_retries]} Retries. Next: #{@miq_queue_object.deliver_on}"
       lines << "  User: #{user.userid} (#{user.name})/#{user.current_group.description}"
       lines << "-"*50
-      if format == "short"
+      if selected_vars.blank?
         lines << state_data.keys
-      else 
+      elsif selected_vars.include?('all')
         lines << state_data.to_yaml
+      else
+        lines << state_data.select{|k,_| selected_vars.include?(k) }.to_yaml
       end
       lines << "="*50
       lines
