@@ -10,7 +10,7 @@ module MiqVar
 
     def initialize(tracking_label, index=0)
       @tracking_label = tracking_label
-      @miq_queue_object = MiqAeMethodService::MiqAeServiceMiqQueue.where(tracking_label: tracking_label).try(:[], index)
+      @miq_queue_object = MiqQueue.where(tracking_label: tracking_label).try(:[], index)
       raise "Unable to find Task: #{@tracking_label}" if @miq_queue_object.blank?
       
       reload()

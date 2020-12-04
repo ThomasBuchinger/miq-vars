@@ -21,7 +21,7 @@ module MiqVar
 
       desc "list", "List currently active requests"
       def list
-        puts MiqAeMethodService::MiqAeServiceMiqQueue.where(class_name: 'MiqAeEngine').map{|q| q.tracking_label }.compact
+        puts MiqQueue.where(class_name: 'MiqAeEngine').map{|q| q.tracking_label }.compact
       end
 
       desc "set TASK_ID KEY JSON_VALUE", "Set (Overwrite) a state variable"

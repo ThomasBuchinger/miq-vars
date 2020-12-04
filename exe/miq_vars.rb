@@ -15,7 +15,7 @@ at_exit do
   end
 end
 
-require_relative '../lib/miq_var'
-require_relative '../lib/miq_var/cli'
+require_relative '../lib/miq_var' unless defined? MiqVar::AIO
+require_relative '../lib/miq_var/cli' unless defined? MiqVar::AIO
 
 MiqVar::Cli::MainCli.start()

@@ -1,16 +1,14 @@
 #frozen_string_literal: true
 
-require 'thor'
-require 'logger'
-require 'yaml'
-
-#require_relative '/var/www/miq/vmdb/config/environment' if File.exists?('/var/www/miq/vmdb/config/environment')
+require_relative '/var/www/miq/vmdb/config/environment' if File.exists?('/var/www/miq/vmdb/config/environment')
 
 lib_dir = __dir__
 $LOAD_PATH << lib_dir
-require_relative 'version'
-require_relative 'miq_var/main'
-require_relative 'miq_var/task'
-require_relative 'miq_var/cli'
+require_relative 'version' unless defined? MiqVar::AIO
 
-MiqVar.validate
+# Guard against all-in-one script
+#
+require_relative 'miq_var/main' unless defined? MiqVar::AIO
+require_relative 'miq_var/task' unless defined? MiqVar::AIO
+require_relative 'miq_var/cli'  unless defined? MiqVar::AIO
+

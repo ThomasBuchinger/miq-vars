@@ -1,7 +1,69 @@
+module MiqVar AIO=true; end
+#frozen_string_literal: true
+
+require_relative '/var/www/miq/vmdb/config/environment' if File.exists?('/var/www/miq/vmdb/config/environment')
+
+lib_dir = __dir__
+$LOAD_PATH << lib_dir
+require_relative 'version' unless defined? MiqVar::AIO
+
+# Guard against all-in-one script
+#
+require_relative 'miq_var/main' unless defined? MiqVar::AIO
+require_relative 'miq_var/task' unless defined? MiqVar::AIO
+require_relative 'miq_var/cli'  unless defined? MiqVar::AIO
+
+
+require 'thor'
+require 'logger'
+require 'yaml'
 
 module MiqVar
   VERSION = '1.0.0'
 end
+# frozen_string_literal: true
+# =============================================================
+# = CLI configuration
+# =============================================================
+require 'thor'
+module MiqVar
+  module Cli
+    class MainCli < Thor
+      def self.exit_on_failure?
+        true
+      end
+      class_option :index, type: :numeric, default: 0, desc: "Select the correct StateMachine, if there are multiple with the same TASK_ID"
+
+      desc "show TASK_ID [all][STATE_VAR, ...]", "Show Information about a given Task (e.g. r1234_miq_provision_1234)"
+      def show(task_id, *state_var)
+        format = options.fetch(:format, 'short')
+        task   = MiqVar.task_by_label(task_id, options[:index])
+
+        puts task.get_details(state_var)
+      end
+
+      desc "list", "List currently active requests"
+      def list
+        puts MiqQueue.where(class_name: 'MiqAeEngine').map{|q| q.tracking_label }.compact
+      end
+
+      desc "set TASK_ID KEY JSON_VALUE", "Set (Overwrite) a state variable"
+      def set(task_id, key, value)
+        task = MiqVar.task_by_label(task_id, options[:index])
+        task.set_state_var(key, YAML.load(value))
+      end
+
+      desc "edit TASK_ID KEY", "Open state variable in EDITOR"
+      def edit(task_id, key)
+        task = MiqVar.task_by_label(task_id, options[:index])
+        old_value = task.get_state_var(key)
+        new_value = MiqVar.open_editor(old_value.to_yaml)
+        task.set_state_var(key, YAML.load(new_value))
+      end
+    end
+  end
+end
+
 # frozen_string_literal: true
 
 # =============================================================
@@ -13,7 +75,7 @@ module MiqVar
 
     def initialize(tracking_label, index=0)
       @tracking_label = tracking_label
-      @miq_queue_object = MiqAeMethodService::MiqAeServiceMiqQueue.where(tracking_label: tracking_label).try(:[], index)
+      @miq_queue_object = MiqQueue.where(tracking_label: tracking_label).try(:[], index)
       raise "Unable to find Task: #{@tracking_label}" if @miq_queue_object.blank?
       
       reload()
@@ -78,7 +140,8 @@ module MiqVar
       lines
     end
   end
-end# frozen_string_literal: true
+end
+# frozen_string_literal: true
 # =============================================================
 # = Global Methods
 # =============================================================
@@ -87,8 +150,8 @@ require 'tempfile'
 module MiqVar
   # Check if we run in a ManageIQ rails context
   def self.validate()
-    raise "MiqQueue not defined. Are you in a rails context?" unless defined? MiqAeMethodService::MiqAeServiceMiqQueue
-
+    # Use native Rails object, not Automate, because MiqAeMethodService uses const_missing to wrap
+    raise "MiqQueue not defined. Are you in a rails context?" unless defined? MiqQueue
   end
 
   def self.task_by_label(tracking_label, index=0)
@@ -110,64 +173,6 @@ module MiqVar
     begin return File.read(f.path); ensure f.unlink; end
   end
 end
-# frozen_string_literal: true
-# =============================================================
-# = CLI configuration
-# =============================================================
-require 'thor'
-module MiqVar
-  module Cli
-    class MainCli < Thor
-      def self.exit_on_failure?
-        true
-      end
-      class_option :index, type: :numeric, default: 0, desc: "Select the correct StateMachine, if there are multiple with the same TASK_ID"
-
-      desc "show TASK_ID [all][STATE_VAR, ...]", "Show Information about a given Task (e.g. r1234_miq_provision_1234)"
-      def show(task_id, *state_var)
-        format = options.fetch(:format, 'short')
-        task   = MiqVar.task_by_label(task_id, options[:index])
-
-        puts task.get_details(state_var)
-      end
-
-      desc "list", "List currently active requests"
-      def list
-        puts MiqAeMethodService::MiqAeServiceMiqQueue.where(class_name: 'MiqAeEngine').map{|q| q.tracking_label }.compact
-      end
-
-      desc "set TASK_ID KEY JSON_VALUE", "Set (Overwrite) a state variable"
-      def set(task_id, key, value)
-        task = MiqVar.task_by_label(task_id, options[:index])
-        task.set_state_var(key, YAML.load(value))
-      end
-
-      desc "edit TASK_ID KEY", "Open state variable in EDITOR"
-      def edit(task_id, key)
-        task = MiqVar.task_by_label(task_id, options[:index])
-        old_value = task.get_state_var(key)
-        new_value = MiqVar.open_editor(old_value.to_yaml)
-        task.set_state_var(key, YAML.load(new_value))
-      end
-    end
-  end
-end
-#frozen_string_literal: true
-
-require 'thor'
-require 'logger'
-require 'yaml'
-
-#require_relative '/var/www/miq/vmdb/config/environment' if File.exists?('/var/www/miq/vmdb/config/environment')
-
-lib_dir = __dir__
-$LOAD_PATH << lib_dir
-require_relative 'version'
-require_relative 'miq_var/main'
-require_relative 'miq_var/task'
-require_relative 'miq_var/cli'
-
-MiqVar.validate
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
@@ -185,7 +190,7 @@ at_exit do
   end
 end
 
-require_relative '../lib/miq_var'
-require_relative '../lib/miq_var/cli'
+require_relative '../lib/miq_var' unless defined? MiqVar::AIO
+require_relative '../lib/miq_var/cli' unless defined? MiqVar::AIO
 
 MiqVar::Cli::MainCli.start()

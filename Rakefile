@@ -1,11 +1,15 @@
 # frozen_string_literal: true
 
 require 'bundler/gem_tasks'
-require 'rubocop/rake_task'
-require 'rspec/core/rake_task'
+def safe_task(gem_name)
+  require gem_name
+  yield
+rescue LoadError
+  puts "Cannot load GEM #{gem_name}"
+end
 
-RuboCop::RakeTask.new
-RSpec::Core::RakeTask.new(:spec)
+safe_task('rubocop/rake_task'){ RuboCop::RakeTask.new }
+safe_task('rspec/core/rake_task'){ RSpec::Core::RakeTask.new(:spec) }
 
 task default: %i[spec]
 task all: %i[spec build all_in_one]
@@ -19,7 +23,7 @@ task :all_in_one do |t|
   FileUtils.rm dest_path if File.exists? dest_path
 
   puts "Copy source-code to #{dest_path}: #{files}"
-  FileUtils.touch(dest_path)
+  File.open(dest_path, 'w') { |file| file.write("module MiqVar AIO=true; end\n") }
   FileUtils.chmod('+x', dest_path)
   aio_file = File.new(dest_path, 'a')
   files.reverse.each do |src|

@@ -7,8 +7,8 @@ require 'tempfile'
 module MiqVar
   # Check if we run in a ManageIQ rails context
   def self.validate()
-    raise "MiqQueue not defined. Are you in a rails context?" unless defined? MiqAeMethodService::MiqAeServiceMiqQueue
-
+    # Use native Rails object, not Automate, because MiqAeMethodService uses const_missing to wrap
+    raise "MiqQueue not defined. Are you in a rails context?" unless defined? MiqQueue
   end
 
   def self.task_by_label(tracking_label, index=0)

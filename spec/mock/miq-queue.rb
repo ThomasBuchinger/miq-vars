@@ -18,6 +18,7 @@ module MiqAeMethodService
     end
   end
 end
+MiqQueue = MiqAeMethodService::MiqAeMethodServiceMiqQueue
 
 class TaskMock
   def initialize(data: {})
